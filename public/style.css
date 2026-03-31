@@ -86,9 +86,95 @@ header h1 {
   flex-shrink: 0;
 }
 
-/* API Key */
-.card-apikey {
+/* API Key toggle button (top-right) */
+header {
+  position: relative;
+}
+
+.btn-apikey-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: var(--text-light);
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: var(--shadow);
+}
+
+.btn-apikey-toggle:hover {
   border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-apikey-toggle.configured {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.key-icon {
+  font-size: 0.9rem;
+}
+
+/* API Key dialog */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 10vh;
+  z-index: 200;
+  backdrop-filter: blur(2px);
+}
+
+.dialog {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  width: 90%;
+  max-width: 480px;
+  overflow: hidden;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.dialog-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.dialog-close {
+  border: none;
+  background: none;
+  font-size: 1.4rem;
+  color: var(--text-light);
+  cursor: pointer;
+  padding: 0 0.2rem;
+  line-height: 1;
+}
+
+.dialog-close:hover {
+  color: var(--text);
+}
+
+.dialog-body {
+  padding: 1.25rem;
 }
 
 .apikey-row {
@@ -336,6 +422,9 @@ textarea {
 
 .action-bar-left {
   margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .hidden {
@@ -363,6 +452,57 @@ textarea {
 .result-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+/* Result tabs */
+.result-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 0.75rem;
+  border-bottom: 2px solid var(--border);
+}
+
+.tab {
+  padding: 0.5rem 1.2rem;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-light);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.result-edit {
+  width: 100%;
+  min-height: 400px;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  resize: vertical;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.result-edit:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 .result-preview {

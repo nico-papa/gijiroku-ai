@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APIキーの取得方法 - 議事録AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Zen Maru Gothic', sans-serif;
+      background: #f5f5f0;
+      color: #2d2d2d;
+      line-height: 1.8;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      color: #6b6b6b;
+      text-decoration: none;
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+    .back-link:hover { color: #3b82f6; }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    .intro {
+      color: #6b6b6b;
+      font-size: 0.95rem;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid #e5e5e0;
+    }
+    .time-badge {
+      display: inline-block;
+      background: #dbeafe;
+      color: #2563eb;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      margin-bottom: 0.75rem;
+    }
+
+    /* Step */
+    .step {
+      background: #ffffff;
+      border: 1px solid #e5e5e0;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .step-num {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.2rem;
+      height: 2.2rem;
+      background: #3b82f6;
+      color: white;
+      border-radius: 50%;
+      font-size: 1rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .step-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+    .step-body {
+      padding-left: 3rem;
+    }
+    .step-body p {
+      margin-bottom: 0.75rem;
+    }
+
+    /* URL box */
+    .url-box {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: #f0f0ec;
+      border: 1px solid #e5e5e0;
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      margin: 0.75rem 0;
+    }
+    .url-box a {
+      color: #3b82f6;
+      font-weight: 500;
+      text-decoration: none;
+      word-break: break-all;
+    }
+    .url-box a:hover { text-decoration: underline; }
+    .url-icon { font-size: 1.1rem; }
+
+    /* Visual guide mockup */
+    .visual-guide {
+      background: #f8f8f6;
+      border: 1px solid #e5e5e0;
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin: 1rem 0;
+    }
+    .visual-guide .mock-browser {
+      background: #ffffff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .mock-bar {
+      background: #f0f0ec;
+      padding: 0.4rem 0.75rem;
+      font-size: 0.75rem;
+      color: #888;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .mock-dots {
+      display: flex;
+      gap: 4px;
+    }
+    .mock-dots span {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ccc;
+    }
+    .mock-content {
+      padding: 1.25rem;
+      text-align: center;
+    }
+    .mock-btn {
+      display: inline-block;
+      background: #4285f4;
+      color: white;
+      padding: 0.6rem 1.5rem;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      margin: 0.75rem 0;
+      cursor: default;
+    }
+    .mock-btn.create {
+      background: #1a73e8;
+    }
+    .mock-key {
+      background: #f0f7ff;
+      border: 2px dashed #4285f4;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin: 0.75rem auto;
+      max-width: 360px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: #1a73e8;
+      letter-spacing: 0.5px;
+      word-break: break-all;
+    }
+
+    /* Pointer arrow */
+    .pointer {
+      color: #ef4444;
+      font-size: 1.5rem;
+      display: inline-block;
+      animation: bounce 1s infinite;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+
+    /* Highlight */
+    .highlight {
+      background: #fef3c7;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .highlight-blue {
+      background: #dbeafe;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 500;
+      color: #1d4ed8;
+    }
+
+    /* Warning / Tip */
+    .tip {
+      background: #f0fdf4;
+      border-left: 3px solid #22c55e;
+      border-radius: 0 8px 8px 0;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    .tip-title {
+      font-weight: 700;
+      color: #16a34a;
+      margin-bottom: 0.2rem;
+    }
+    .warning {
+      background: #fffbeb;
+      border-left: 3px solid #f59e0b;
+      border-radius: 0 8px 8px 0;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    .warning-title {
+      font-weight: 700;
+      color: #d97706;
+      margin-bottom: 0.2rem;
+    }
+
+    /* Final section */
+    .final {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-align: center;
+      margin-top: 2rem;
+    }
+    .final h2 {
+      font-size: 1.1rem;
+      color: #1d4ed8;
+      margin-bottom: 0.5rem;
+    }
+
+    @media (max-width: 600px) {
+      .container { padding: 1rem; }
+      h1 { font-size: 1.3rem; }
+      .step-body { padding-left: 0; margin-top: 0.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back-link">&larr; 議事録AIに戻る</a>
+
+    <h1>Gemini APIキーの取得方法</h1>
+    <p class="intro">
+      <span class="time-badge">所要時間: 約2分</span><br>
+      議事録AIを使うには、GoogleのAI「Gemini」のAPIキーが必要です。<br>
+      Googleアカウントがあれば<strong>無料</strong>で取得できます。以下の手順に沿って進めてください。
+    </p>
+
+    <!-- Step 1 -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num">1</div>
+        <div class="step-title">Google AI Studio を開く</div>
+      </div>
+      <div class="step-body">
+        <p>下のリンクをクリックして、Google AI Studioを開いてください。</p>
+        <div class="url-box">
+          <span class="url-icon">&#127760;</span>
+          <a href="https://aistudio.google.com/apikey" target="_blank">https://aistudio.google.com/apikey</a>
+        </div>
+        <p>Googleアカウントでのログインを求められたら、ログインしてください。</p>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num">2</div>
+        <div class="step-title">「APIキーを作成」をクリック</div>
+      </div>
+      <div class="step-body">
+        <p>ページが開いたら、右上の「APIキーを作成」をクリックします。</p>
+        <div class="visual-guide">
+          <div class="mock-browser">
+            <div class="mock-bar">
+              <div class="mock-dots"><span></span><span></span><span></span></div>
+              aistudio.google.com/apikey
+            </div>
+            <div class="mock-content">
+              <p style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">API keys</p>
+              <span class="pointer">&darr;</span><br>
+              <div class="mock-btn create">+ APIキーを作成</div>
+              <p style="font-size: 0.8rem; color: #999; margin-top: 0.75rem;">
+                英語表示の場合は「Create API key」と書かれています
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num">3</div>
+        <div class="step-title">APIキーをコピー</div>
+      </div>
+      <div class="step-body">
+        <p>キーが生成されたら、<span class="highlight">コピーボタン</span>をクリックしてコピーします。</p>
+        <div class="visual-guide">
+          <div class="mock-browser">
+            <div class="mock-bar">
+              <div class="mock-dots"><span></span><span></span><span></span></div>
+              aistudio.google.com/apikey
+            </div>
+            <div class="mock-content">
+              <p style="font-size: 0.85rem; color: #666; margin-bottom: 0.5rem;">あなたのAPIキー:</p>
+              <div class="mock-key">AIzaSyD...xxxxxxxxxxxxxxxx</div>
+              <span class="pointer">&darr;</span><br>
+              <div class="mock-btn" style="background: #34a853; font-size: 0.85rem; padding: 0.4rem 1.2rem;">コピー</div>
+            </div>
+          </div>
+        </div>
+        <div class="warning">
+          <div class="warning-title">注意</div>
+          APIキーは他人に教えないでください。あなた専用の鍵です。
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-num">4</div>
+        <div class="step-title">議事録AIにキーを設定</div>
+      </div>
+      <div class="step-body">
+        <p>議事録AIの画面に戻り、右上の <span class="highlight-blue">&#128273; APIキー未設定</span> ボタンをクリック。</p>
+        <p>表示されたダイアログに、コピーしたAPIキーを<strong>貼り付け</strong>て「確認」ボタンを押します。</p>
+        <p>「<span style="color: #22c55e; font-weight: 700;">有効なAPIキーです</span>」と表示されれば完了です！</p>
+        <div class="tip">
+          <div class="tip-title">ポイント</div>
+          APIキーは一度設定すれば、ブラウザが記憶します。次回以降は入力不要です。
+        </div>
+      </div>
+    </div>
+
+    <!-- Final -->
+    <div class="final">
+      <h2>設定完了！</h2>
+      <p>これで議事録AIが使えます。<br>音声ファイルをアップロードして、議事録を自動生成しましょう。</p>
+      <br>
+      <a href="/" style="color: #1d4ed8; font-weight: 500; text-decoration: none;">&larr; 議事録AIに戻る</a>
+    </div>
+
+    <div class="tip" style="margin-top: 2rem;">
+      <div class="tip-title">料金について</div>
+      Gemini APIには無料枠があり、月に数回の議事録作成であれば<strong>料金は発生しません</strong>。<br>
+      大量に使う場合でも、従量制で非常に安価です。
+    </div>
+  </div>
+</body>
+</html>

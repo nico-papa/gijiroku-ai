@@ -13,19 +13,30 @@
     <header>
       <h1>議事録AI</h1>
       <p class="subtitle">音声ファイル → AI文字起こし → 議事録自動生成</p>
+      <button class="btn-apikey-toggle" id="btnApiKeyToggle" onclick="toggleApiKeyDialog()">
+        <span class="key-icon">&#128273;</span>
+        <span id="apiKeyLabel">APIキー未設定</span>
+      </button>
     </header>
 
-    <!-- APIキー設定 -->
-    <section class="card card-apikey">
-      <h2>Gemini APIキー</h2>
-      <div class="apikey-row">
-        <input type="password" id="apiKey" placeholder="Gemini APIキーを入力"
-               autocomplete="off" spellcheck="false">
-        <button id="btnVerify" class="btn btn-accent" onclick="verifyApiKey()">確認</button>
+    <!-- APIキーダイアログ -->
+    <div id="apiKeyOverlay" class="dialog-overlay hidden" onclick="closeApiKeyDialog(event)">
+      <div class="dialog" onclick="event.stopPropagation()">
+        <div class="dialog-header">
+          <h3>Gemini APIキー設定</h3>
+          <button class="dialog-close" onclick="toggleApiKeyDialog()">&times;</button>
+        </div>
+        <div class="dialog-body">
+          <div class="apikey-row">
+            <input type="password" id="apiKey" placeholder="Gemini APIキーを入力"
+                   autocomplete="off" spellcheck="false">
+            <button class="btn btn-accent" onclick="verifyApiKey()">確認</button>
+          </div>
+          <p id="apiKeyStatus" class="apikey-status"></p>
+          <p class="hint"><a href="/guide.html" target="_blank"><strong>APIキーの取得方法はこちら</strong></a>（図解付き・2分で完了）<br>キーはブラウザにのみ保存され、サーバーには保存されません。</p>
+        </div>
       </div>
-      <p id="apiKeyStatus" class="apikey-status"></p>
-      <p class="hint">APIキーは <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> で無料取得できます。キーはブラウザにのみ保存され、サーバーには保存されません。</p>
-    </section>
+    </div>
 
     <!-- 会議情報 -->
     <section class="card">
@@ -41,7 +52,7 @@
         </div>
         <div class="form-group full-width">
           <label for="participants">参加者</label>
-          <input type="text" id="participants" placeholder="例: 田中、佐藤、鈴木">
+          <textarea id="participants" rows="3" placeholder="例: 田中（進行役）、佐藤（総務）、鈴木、山田、高橋、渡辺...&#10;参加者が多い場合は改行で区切ってもOKです"></textarea>
         </div>
       </div>
     </section>
@@ -83,7 +94,7 @@
     <!-- テキストメモ -->
     <section class="card">
       <h2>テキストメモ・補足（任意）</h2>
-      <textarea id="memo" rows="5" placeholder="手書きメモ、チャットログ、補足情報があればここに貼り付けてください。"></textarea>
+      <textarea id="memo" rows="5" placeholder="ここに書いた内容はAIが議事録に反映します。&#10;例えば「話者Aは田中社長」「議題3は来月に持ち越しになった」など書いておくと、AIがそれを考慮して議事録に組み込みます。"></textarea>
     </section>
 
     <!-- 生成ボタン -->
@@ -99,20 +110,18 @@
         <h2>生成された議事録</h2>
         <div class="result-actions">
           <button class="btn btn-sm" onclick="copyResult()">コピー</button>
-          <button class="btn btn-sm" onclick="downloadMarkdown()">Markdown</button>
-          <button class="btn btn-sm btn-pdf" onclick="downloadPDF()">PDF</button>
           <button class="btn btn-sm btn-docx" onclick="downloadDocx()">Word</button>
         </div>
       </div>
+      <div class="result-tabs">
+        <button class="tab active" onclick="switchTab('preview')" id="tabPreview">プレビュー</button>
+        <button class="tab" onclick="switchTab('edit')" id="tabEdit">編集</button>
+      </div>
       <div id="resultPreview" class="result-preview"></div>
-      <details>
-        <summary>Markdownソース</summary>
-        <pre id="resultRaw" class="result-raw"></pre>
-      </details>
+      <textarea id="resultEdit" class="result-edit hidden" rows="20"></textarea>
     </section>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -22,6 +22,30 @@ function requireApiKey() {
   return key;
 }
 
+function toggleApiKeyDialog() {
+  const overlay = document.getElementById("apiKeyOverlay");
+  overlay.classList.toggle("hidden");
+}
+
+function closeApiKeyDialog(e) {
+  if (e.target === e.currentTarget) {
+    document.getElementById("apiKeyOverlay").classList.add("hidden");
+  }
+}
+
+function updateApiKeyLabel() {
+  const key = getApiKey();
+  const label = document.getElementById("apiKeyLabel");
+  const btn = document.getElementById("btnApiKeyToggle");
+  if (key) {
+    label.textContent = "APIキー設定済み";
+    btn.classList.add("configured");
+  } else {
+    label.textContent = "APIキー未設定";
+    btn.classList.remove("configured");
+  }
+}
+
 async function verifyApiKey() {
   const key = getApiKey();
   if (!key) {
@@ -44,6 +68,9 @@ async function verifyApiKey() {
       status.textContent = "有効なAPIキーです";
       status.className = "apikey-status valid";
       localStorage.setItem(API_KEY_STORAGE, key);
+      updateApiKeyLabel();
+      // 1秒後にダイアログを閉じる
+      setTimeout(() => document.getElementById("apiKeyOverlay").classList.add("hidden"), 1000);
     } else {
       status.textContent = "無効なAPIキー: " + (data.error || "");
       status.className = "apikey-status invalid";
@@ -220,9 +247,36 @@ function showResult(markdown) {
   section.classList.remove("hidden");
 
   document.getElementById("resultPreview").innerHTML = renderMarkdown(markdown);
-  document.getElementById("resultRaw").textContent = markdown;
+  document.getElementById("resultEdit").value = markdown;
 
+  // プレビュータブに戻す
+  switchTab("preview");
   section.scrollIntoView({ behavior: "smooth" });
+}
+
+function switchTab(mode) {
+  const preview = document.getElementById("resultPreview");
+  const edit = document.getElementById("resultEdit");
+  const tabPreview = document.getElementById("tabPreview");
+  const tabEdit = document.getElementById("tabEdit");
+
+  if (mode === "edit") {
+    preview.classList.add("hidden");
+    edit.classList.remove("hidden");
+    edit.value = currentResult;
+    tabPreview.classList.remove("active");
+    tabEdit.classList.add("active");
+  } else {
+    // 編集内容を反映
+    if (!edit.classList.contains("hidden")) {
+      currentResult = edit.value;
+      preview.innerHTML = renderMarkdown(currentResult);
+    }
+    edit.classList.add("hidden");
+    preview.classList.remove("hidden");
+    tabEdit.classList.remove("active");
+    tabPreview.classList.add("active");
+  }
 }
 
 function renderMarkdown(md) {
@@ -250,39 +304,6 @@ function copyResult() {
     btn.textContent = "コピー済み";
     setTimeout(() => btn.textContent = orig, 1500);
   });
-}
-
-function downloadMarkdown() {
-  const title = document.getElementById("meetingTitle").value.trim() || "議事録";
-  const dateStr = new Date().toISOString().slice(0, 10);
-  const filename = `${title}_${dateStr}.md`;
-
-  const blob = new Blob([currentResult], { type: "text/markdown;charset=utf-8" });
-  triggerDownload(blob, filename);
-}
-
-async function downloadPDF() {
-  if (!currentResult) return;
-  const overlay = showLoading("PDFを生成中...");
-  try {
-    const title = document.getElementById("meetingTitle").value.trim() || "議事録";
-    const dateStr = new Date().toISOString().slice(0, 10);
-
-    // プレビューHTMLからPDF生成（クライアントサイド）
-    const source = document.getElementById("resultPreview");
-    const opt = {
-      margin: [15, 15, 15, 15],
-      filename: `${title}_${dateStr}.pdf`,
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    };
-    await html2pdf().set(opt).from(source).save();
-  } catch (err) {
-    alert(`PDF生成エラー: ${err.message}`);
-  } finally {
-    overlay.remove();
-  }
 }
 
 async function downloadDocx() {
@@ -327,6 +348,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (savedKey) {
     document.getElementById("apiKey").value = savedKey;
   }
+  updateApiKeyLabel();
 
   // 日時デフォルト
   const now = new Date();
