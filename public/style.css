@@ -333,6 +333,14 @@ textarea {
   background: rgba(239, 68, 68, 0.08);
 }
 
+/* Transcript header */
+.transcript-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
 /* Hint */
 .hint {
   font-size: 0.82rem;

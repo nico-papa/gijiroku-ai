@@ -306,6 +306,34 @@ function copyResult() {
   });
 }
 
+async function downloadTranscriptDocx() {
+  const transcript = document.getElementById("transcript").value.trim();
+  if (!transcript) {
+    alert("文字起こし結果がありません。");
+    return;
+  }
+  const overlay = showLoading("Wordファイルを生成中...");
+  try {
+    const meetingTitle = document.getElementById("meetingTitle").value.trim() || "文字起こし";
+    const res = await fetch("/api/export/docx", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ markdown: transcript, meetingTitle: meetingTitle + "_文字起こし" }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error);
+    }
+    const blob = await res.blob();
+    const dateStr = new Date().toISOString().slice(0, 10);
+    triggerDownload(blob, `${meetingTitle}_文字起こし_${dateStr}.docx`);
+  } catch (err) {
+    alert(`Word生成エラー: ${err.message}`);
+  } finally {
+    overlay.remove();
+  }
+}
+
 async function downloadDocx() {
   if (!currentResult) return;
   const overlay = showLoading("Wordファイルを生成中...");

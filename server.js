@@ -21,9 +21,8 @@ const TMP_DIR = resolve(__dirname, "tmp");
 mkdirSync(TMP_DIR, { recursive: true });
 
 const MODEL = "gemini-3-flash-preview";
-const MODEL_FALLBACK = "gemini-2.5-flash";
-const PORT = process.env.GIJIROKU_PORT || 3456;
-const MAX_RETRIES = 3;
+const PORT = process.env.PORT || process.env.GIJIROKU_PORT || 3456;
+const MAX_RETRIES = 5;
 const RETRY_DELAY = 5000; // 5秒
 
 const app = express();
@@ -184,13 +183,22 @@ async function callGeminiWithRetry(apiKey, model, body, timeoutMs = 60_000) {
   throw lastError;
 }
 
-// Pro → Flash フォールバック
+// gemini-3-flash-preview 固定（フォールバックなし）
 async function callGeminiSmart(apiKey, body, timeoutMs = 60_000) {
   try {
     return await callGeminiWithRetry(apiKey, MODEL, body, timeoutMs);
   } catch (err) {
-    console.log(`  → ${MODEL} 失敗, ${MODEL_FALLBACK} にフォールバック...`);
-    return await callGeminiWithRetry(apiKey, MODEL_FALLBACK, body, timeoutMs);
+    // 503の場合はわかりやすいメッセージに変換
+    if (err.message.includes("503") || err.message.includes("UNAVAILABLE")) {
+      throw new Error("AIサーバーが現在混み合っています。しばらく時間を置いてから再度お試しください。");
+    }
+    if (err.message.includes("fetch failed") || err.message.includes("other side closed")) {
+      throw new Error("AIサーバーとの接続が切れました。しばらく時間を置いてから再度お試しください。");
+    }
+    if (err.message.includes("timeout") || err.message.includes("aborted")) {
+      throw new Error("AIサーバーからの応答がありませんでした。しばらく時間を置いてから再度お試しください。");
+    }
+    throw err;
   }
 }
 
@@ -212,7 +220,7 @@ async function callGeminiWithFileUri(apiKey, fileUri, mimeType, prompt) {
       ],
     }],
     generationConfig: { temperature: 0.1, maxOutputTokens: 65536 },
-  }, 600_000); // 10分タイムアウト
+  }, 120_000); // 2分タイムアウト（リトライ5回で最大約12分）
 }
 
 // ─── APIキー検証 ───

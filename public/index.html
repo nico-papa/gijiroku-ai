@@ -87,7 +87,10 @@
         <span class="step-badge">2</span>
         文字起こし結果
       </h2>
-      <p class="hint">内容を確認・編集してから議事録を生成してください。</p>
+      <div class="transcript-header">
+        <p class="hint">内容を確認・編集してから議事録を生成してください。</p>
+        <button class="btn btn-sm btn-docx" onclick="downloadTranscriptDocx()">Word</button>
+      </div>
       <textarea id="transcript" rows="12" placeholder="文字起こし結果がここに表示されます。"></textarea>
     </section>
 
