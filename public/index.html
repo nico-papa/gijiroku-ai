@@ -82,7 +82,7 @@
     </section>
 
     <!-- ステップ2: 文字起こし結果 + メモ -->
-    <section id="transcriptSection" class="card hidden">
+    <section id="transcriptSection" class="card">
       <h2>
         <span class="step-badge">2</span>
         文字起こし結果
@@ -91,7 +91,7 @@
         <p class="hint">内容を確認・編集してから議事録を生成してください。</p>
         <button class="btn btn-sm btn-docx" onclick="downloadTranscriptDocx()">Word</button>
       </div>
-      <textarea id="transcript" rows="12" placeholder="文字起こし結果がここに表示されます。"></textarea>
+      <textarea id="transcript" rows="12" placeholder="音声ファイルの文字起こし結果がここに表示されます。&#10;Google AI Studio等で文字起こし済みのテキストを直接貼り付けることもできます。"></textarea>
     </section>
 
     <!-- テキストメモ -->
