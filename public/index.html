@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>議事録AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>議事録AI</h1>
+      <p class="subtitle">音声ファイル → AI文字起こし → 議事録自動生成</p>
+    </header>
+
+    <!-- APIキー設定 -->
+    <section class="card card-apikey">
+      <h2>Gemini APIキー</h2>
+      <div class="apikey-row">
+        <input type="password" id="apiKey" placeholder="Gemini APIキーを入力"
+               autocomplete="off" spellcheck="false">
+        <button id="btnVerify" class="btn btn-accent" onclick="verifyApiKey()">確認</button>
+      </div>
+      <p id="apiKeyStatus" class="apikey-status"></p>
+      <p class="hint">APIキーは <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> で無料取得できます。キーはブラウザにのみ保存され、サーバーには保存されません。</p>
+    </section>
+
+    <!-- 会議情報 -->
+    <section class="card">
+      <h2>会議情報</h2>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="meetingTitle">会議名</label>
+          <input type="text" id="meetingTitle" placeholder="例: 週次定例ミーティング">
+        </div>
+        <div class="form-group">
+          <label for="meetingDate">日時</label>
+          <input type="datetime-local" id="meetingDate">
+        </div>
+        <div class="form-group full-width">
+          <label for="participants">参加者</label>
+          <input type="text" id="participants" placeholder="例: 田中、佐藤、鈴木">
+        </div>
+      </div>
+    </section>
+
+    <!-- ステップ1: 音声ファイルアップロード -->
+    <section class="card">
+      <h2>
+        <span class="step-badge">1</span>
+        音声ファイル
+      </h2>
+      <div class="upload-area" id="dropZone">
+        <input type="file" id="audioFile" accept="audio/*,.mp3,.wav,.m4a,.mp4,.ogg,.webm,.flac,.aac" hidden>
+        <div class="upload-icon">&#127908;</div>
+        <p class="upload-main">クリックまたはドラッグ&ドロップで音声ファイルを選択</p>
+        <p class="upload-sub">対応形式: MP3, WAV, M4A, MP4, OGG, WebM, FLAC, AAC</p>
+      </div>
+      <div id="fileInfo" class="file-info hidden">
+        <span id="fileName" class="file-name"></span>
+        <span id="fileSize" class="file-size"></span>
+        <button class="btn btn-sm btn-remove" onclick="removeFile()">削除</button>
+      </div>
+      <div class="action-bar-left">
+        <button id="btnTranscribe" class="btn btn-accent" onclick="transcribeAudio()" disabled>
+          文字起こし開始
+        </button>
+      </div>
+    </section>
+
+    <!-- ステップ2: 文字起こし結果 + メモ -->
+    <section id="transcriptSection" class="card hidden">
+      <h2>
+        <span class="step-badge">2</span>
+        文字起こし結果
+      </h2>
+      <p class="hint">内容を確認・編集してから議事録を生成してください。</p>
+      <textarea id="transcript" rows="12" placeholder="文字起こし結果がここに表示されます。"></textarea>
+    </section>
+
+    <!-- テキストメモ -->
+    <section class="card">
+      <h2>テキストメモ・補足（任意）</h2>
+      <textarea id="memo" rows="5" placeholder="手書きメモ、チャットログ、補足情報があればここに貼り付けてください。"></textarea>
+    </section>
+
+    <!-- 生成ボタン -->
+    <div class="action-bar">
+      <button id="btnGenerate" class="btn btn-primary" onclick="generateMinutes()">
+        議事録を生成
+      </button>
+    </div>
+
+    <!-- 結果 -->
+    <section id="resultSection" class="card result-card hidden">
+      <div class="result-header">
+        <h2>生成された議事録</h2>
+        <div class="result-actions">
+          <button class="btn btn-sm" onclick="copyResult()">コピー</button>
+          <button class="btn btn-sm" onclick="downloadMarkdown()">Markdown</button>
+          <button class="btn btn-sm btn-pdf" onclick="downloadPDF()">PDF</button>
+          <button class="btn btn-sm btn-docx" onclick="downloadDocx()">Word</button>
+        </div>
+      </div>
+      <div id="resultPreview" class="result-preview"></div>
+      <details>
+        <summary>Markdownソース</summary>
+        <pre id="resultRaw" class="result-raw"></pre>
+      </details>
+    </section>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
