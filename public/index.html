@@ -38,8 +38,31 @@
       </div>
     </div>
 
-    <!-- 会議情報 -->
+    <!-- 様式選択 -->
     <section class="card">
+      <h2>様式選択</h2>
+      <div class="format-selector">
+        <label class="format-option selected" id="formatGeneral">
+          <input type="radio" name="format" value="general" checked onchange="switchFormat()">
+          <div class="format-card">
+            <div class="format-icon">📝</div>
+            <div class="format-label">一般会議</div>
+            <div class="format-desc">通常の会議・委員会向け</div>
+          </div>
+        </label>
+        <label class="format-option" id="formatKouji">
+          <input type="radio" name="format" value="kouji" onchange="switchFormat()">
+          <div class="format-card">
+            <div class="format-icon">🏗️</div>
+            <div class="format-label">公共工事</div>
+            <div class="format-desc">打合記録簿（発注者/受注者）</div>
+          </div>
+        </label>
+      </div>
+    </section>
+
+    <!-- 会議情報（一般） -->
+    <section class="card" id="sectionGeneral">
       <h2>会議情報</h2>
       <div class="form-grid">
         <div class="form-group">
@@ -53,6 +76,49 @@
         <div class="form-group full-width">
           <label for="participants">参加者</label>
           <textarea id="participants" rows="3" placeholder="例: 田中（進行役）、佐藤（総務）、鈴木、山田、高橋、渡辺...&#10;参加者が多い場合は改行で区切ってもOKです"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- 打合記録情報（公共工事） -->
+    <section class="card hidden" id="sectionKouji">
+      <h2>打合記録情報</h2>
+      <div class="form-grid">
+        <div class="form-group full-width">
+          <label for="koujiName">業務（工事）の名称</label>
+          <input type="text" id="koujiName" placeholder="例: ○○号 △△事務所水防倉庫新築工事設計委託">
+        </div>
+        <div class="form-group">
+          <label for="koujiDate">年月日</label>
+          <input type="datetime-local" id="koujiDate">
+        </div>
+        <div class="form-group">
+          <label for="koujiPlace">場所</label>
+          <input type="text" id="koujiPlace" placeholder="例: 愛媛県南予地方局 八幡浜支局">
+        </div>
+        <div class="form-group">
+          <label for="koujiHatchuName">発注機関名（担当部署名）</label>
+          <input type="text" id="koujiHatchuName" placeholder="例: 愛媛県南予地方局">
+        </div>
+        <div class="form-group">
+          <label for="koujiJuchuName">会社名（受注者側）</label>
+          <input type="text" id="koujiJuchuName" placeholder="例: Y.A.Design">
+        </div>
+        <div class="form-group">
+          <label for="koujiHatchuMembers">出席者（発注者側）</label>
+          <input type="text" id="koujiHatchuMembers" placeholder="例: 西村、大野、谷尾、岡崎">
+        </div>
+        <div class="form-group">
+          <label for="koujiJuchuMembers">出席者（受注者側）</label>
+          <input type="text" id="koujiJuchuMembers" placeholder="例: 設計：山内">
+        </div>
+        <div class="form-group">
+          <label for="koujiKaisu">回数</label>
+          <input type="text" id="koujiKaisu" placeholder="例: 第2回">
+        </div>
+        <div class="form-group">
+          <label for="koujiMethod">打合せ方式</label>
+          <input type="text" id="koujiMethod" value="会議" placeholder="例: 会議">
         </div>
       </div>
     </section>
@@ -98,6 +164,7 @@
     <section class="card">
       <h2>テキストメモ・補足（任意）</h2>
       <textarea id="memo" rows="5" placeholder="ここに書いた内容はAIが議事録に反映します。&#10;例えば「話者Aは田中社長」「議題3は来月に持ち越しになった」など書いておくと、AIがそれを考慮して議事録に組み込みます。"></textarea>
+      <p class="hint memo-kouji-hint hidden" id="memoKoujiHint">💡 公共工事モード：音声文字起こしの場合、メモ欄に「話者Bは受注者」のように記入すると、発注者/受注者の振り分けが自動化されます。</p>
     </section>
 
     <!-- 生成ボタン -->
@@ -113,7 +180,7 @@
         <h2>生成された議事録</h2>
         <div class="result-actions">
           <button class="btn btn-sm" onclick="copyResult()">コピー</button>
-          <button class="btn btn-sm btn-docx" onclick="downloadDocx()">Word</button>
+          <button class="btn btn-sm btn-docx" id="btnDownloadResult" onclick="downloadDocx()">Word</button>
         </div>
       </div>
       <div class="result-tabs">

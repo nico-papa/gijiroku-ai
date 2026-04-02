@@ -10,13 +10,16 @@ import multer from "multer";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { execFile } from "child_process";
-import { writeFileSync, readFileSync, unlinkSync, mkdirSync } from "fs";
+import { writeFileSync, readFileSync, unlinkSync, mkdirSync, existsSync } from "fs";
+import XLSX from "xlsx";
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   AlignmentType, BorderStyle, LevelFormat,
+  Table, TableRow, TableCell, WidthType, VerticalAlign,
 } from "docx";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const IS_WINDOWS = process.platform === "win32";
 const TMP_DIR = resolve(__dirname, "tmp");
 mkdirSync(TMP_DIR, { recursive: true });
 
@@ -302,12 +305,17 @@ app.post("/api/transcribe", upload.single("audio"), async (req, res) => {
 app.post("/api/generate", async (req, res) => {
   try {
     const apiKey = getApiKey(req);
-    const { transcript, memo, meetingTitle, participants, date } = req.body;
+    const { transcript, memo, format, meetingTitle, participants, date, koujiInfo } = req.body;
     if (!transcript && !memo) {
       return res.status(400).json({ error: "文字起こしテキストまたはメモを入力してください" });
     }
 
-    const prompt = buildMinutesPrompt({ transcript, memo, meetingTitle, participants, date });
+    let prompt;
+    if (format === "kouji") {
+      prompt = buildKoujiPrompt({ transcript, memo, koujiInfo });
+    } else {
+      prompt = buildMinutesPrompt({ transcript, memo, meetingTitle, participants, date });
+    }
     const result = await callGeminiText(apiKey, prompt);
     res.json({ minutes: result });
   } catch (err) {
@@ -391,15 +399,489 @@ app.post("/api/export/docx", async (req, res) => {
     });
 
     const buffer = await Packer.toBuffer(doc);
-    const filename = encodeURIComponent(meetingTitle || "議事録") + ".docx";
-    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.send(Buffer.from(buffer));
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const baseName = (meetingTitle || "議事録") + "_" + dateStr;
+    if (IS_WINDOWS) {
+      const outputPath = resolve("C:/Users/tekko/Desktop", baseName + ".docx");
+      writeFileSync(outputPath, Buffer.from(buffer));
+      res.json({ success: true, path: outputPath, filename: baseName + ".docx" });
+    } else {
+      const filename = baseName + ".docx";
+      const enc = encodeURIComponent(filename);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      res.setHeader("Content-Disposition", `attachment; filename="${enc}"; filename*=UTF-8''${enc}`);
+      res.send(Buffer.from(buffer));
+    }
   } catch (err) {
     console.error("Word生成エラー:", err.message);
     res.status(500).json({ error: `Word生成エラー: ${err.message}` });
   }
 });
+
+// ─── Word出力（公共工事 打合記録簿フォーマット） ───
+app.post("/api/export/docx-kouji", async (req, res) => {
+  const { markdown, koujiInfo = {} } = req.body;
+  if (!markdown) return res.status(400).json({ error: "Markdownが空です" });
+
+  try {
+    // ヘルパー: セル生成（改行対応）
+    const cellBorders = {
+      top: { style: BorderStyle.SINGLE, size: 1 },
+      bottom: { style: BorderStyle.SINGLE, size: 1 },
+      left: { style: BorderStyle.SINGLE, size: 1 },
+      right: { style: BorderStyle.SINGLE, size: 1 },
+    };
+    const cell = (text, opts = {}) => {
+      const lines = (text || "").split("\n");
+      const paragraphs = lines.map(line => new Paragraph({
+        alignment: opts.align || AlignmentType.LEFT,
+        children: [new TextRun({
+          text: line,
+          font: "Yu Gothic",
+          size: opts.size || 18,
+          bold: opts.bold || false,
+        })],
+        spacing: { before: 0, after: 0 },
+      }));
+      return new TableCell({
+        width: opts.width ? { size: opts.width, type: WidthType.DXA } : undefined,
+        verticalAlign: VerticalAlign.CENTER,
+        children: paragraphs,
+        columnSpan: opts.colSpan,
+        rowSpan: opts.rowSpan,
+        borders: cellBorders,
+        shading: opts.shading,
+      });
+    };
+
+    // ヘッダー情報テーブル
+    const ki = koujiInfo;
+    const headerTable = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        // 回数行
+        new TableRow({
+          children: [
+            cell(ki.kaisu || "第　回", { bold: true, colSpan: 6, align: AlignmentType.CENTER, size: 20 }),
+          ],
+        }),
+        // 年月日・場所
+        new TableRow({
+          children: [
+            cell("年月日", { bold: true, width: 1400 }),
+            cell(ki.date || "", { colSpan: 2, width: 3600 }),
+            cell("場所", { bold: true, width: 1000 }),
+            cell(ki.place || "", { colSpan: 2 }),
+          ],
+        }),
+        // 業務名称
+        new TableRow({
+          children: [
+            cell("業務の名称", { bold: true, width: 1400 }),
+            cell(ki.koujiName || "", { colSpan: 2 }),
+            cell("打合せ方式", { bold: true, width: 1400 }),
+            cell(ki.method || "会議", { colSpan: 2 }),
+          ],
+        }),
+        // 発注機関・会社名
+        new TableRow({
+          children: [
+            cell("発注機関名\n担当部署名", { bold: true }),
+            cell(ki.hatchuName || "", { colSpan: 2 }),
+            cell("会社名\n（受注者側）", { bold: true }),
+            cell(ki.juchuName || "", { colSpan: 2 }),
+          ],
+        }),
+        // 出席者
+        new TableRow({
+          children: [
+            cell("出席者", { bold: true }),
+            cell("発注者側", { bold: true, width: 1000 }),
+            cell(ki.hatchuMembers || ""),
+            cell("", { bold: true }),
+            cell("受注者側", { bold: true, width: 1000 }),
+            cell(ki.juchuMembers || ""),
+          ],
+        }),
+      ],
+    });
+
+    // 内容を発注者側/受注者側に分離してパース
+    const contentRows = parseKoujiContent(markdown);
+
+    // 発注者・受注者2列テーブル
+    const colLabelRow = new TableRow({
+      children: [
+        cell("発注者側", { bold: true, align: AlignmentType.CENTER, width: 5000,
+          shading: { fill: "E8E8E8" } }),
+        cell("受注者側", { bold: true, align: AlignmentType.CENTER,
+          shading: { fill: "E8E8E8" } }),
+      ],
+    });
+
+    const bodyRows = contentRows.map(row => new TableRow({
+      children: [
+        new TableCell({
+          width: { size: 5000, type: WidthType.DXA },
+          verticalAlign: VerticalAlign.TOP,
+          children: row.hatchu.map(line => new Paragraph({
+            children: [new TextRun({ text: line, font: "Yu Gothic", size: 20 })],
+            spacing: { before: 20, after: 20 },
+            indent: line.startsWith("・") ? { left: 200, hanging: 200 } : undefined,
+          })),
+          borders: {
+            top: { style: BorderStyle.SINGLE, size: 1 },
+            bottom: { style: BorderStyle.SINGLE, size: 1 },
+            left: { style: BorderStyle.SINGLE, size: 1 },
+            right: { style: BorderStyle.SINGLE, size: 1 },
+          },
+        }),
+        new TableCell({
+          verticalAlign: VerticalAlign.TOP,
+          children: row.juchu.map(line => new Paragraph({
+            children: [new TextRun({ text: line, font: "Yu Gothic", size: 20 })],
+            spacing: { before: 20, after: 20 },
+            indent: line.startsWith("・") ? { left: 200, hanging: 200 } : undefined,
+          })),
+          borders: {
+            top: { style: BorderStyle.SINGLE, size: 1 },
+            bottom: { style: BorderStyle.SINGLE, size: 1 },
+            left: { style: BorderStyle.SINGLE, size: 1 },
+            right: { style: BorderStyle.SINGLE, size: 1 },
+          },
+        }),
+      ],
+    }));
+
+    const contentTable = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [colLabelRow, ...bodyRows],
+    });
+
+    // 注記
+    const note = new Paragraph({
+      children: [new TextRun({
+        text: "（注）1.内容欄には、打合せ議事内容を記載すること。",
+        font: "Yu Gothic", size: 16, italics: true,
+      })],
+      spacing: { before: 100 },
+    });
+
+    const doc = new Document({
+      styles: {
+        default: {
+          document: {
+            run: { font: "Yu Gothic", size: 20 },
+            paragraph: { spacing: { line: 240, after: 0 } },
+          },
+        },
+      },
+      sections: [{
+        properties: {
+          page: {
+            size: { width: 16838, height: 11906 }, // A4横
+            margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 }, // 20mm
+          },
+        },
+        children: [headerTable, new Paragraph({ spacing: { before: 200 } }), contentTable, note],
+      }],
+    });
+
+    const buffer = await Packer.toBuffer(doc);
+    const filename = (ki.koujiName || "打合記録") + ".docx";
+    const encodedFilename = encodeURIComponent(filename);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    res.setHeader("Content-Disposition", `attachment; filename="${encodedFilename}"; filename*=UTF-8''${encodedFilename}`);
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.error("公共工事Word生成エラー:", err.message);
+    res.status(500).json({ error: `Word生成エラー: ${err.message}` });
+  }
+});
+
+// ─── Excel出力（公共工事 Excel COM転記） ───
+const KOUJI_TEMPLATE = "X:\\公共工事議事録\\打合記録.xls";
+const KOUJI_OUTPUT_DIR = "X:\\公共工事議事録";
+
+app.post("/api/export/xls-kouji", async (req, res) => {
+  if (!IS_WINDOWS) {
+    return res.status(400).json({ error: "公共工事Excel出力はローカル環境（Windows）でのみ使用できます" });
+  }
+  const { markdown, koujiInfo = {} } = req.body;
+  if (!markdown) return res.status(400).json({ error: "Markdownが空です" });
+
+  try {
+    const ki = koujiInfo;
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const baseName = (ki.koujiName || "打合記録") + "_" + dateStr;
+    const outputPath = resolve(KOUJI_OUTPUT_DIR, baseName + ".xlsx");
+
+    // 協議内容をパース
+    const entries = parseKoujiForExcel(markdown);
+
+    // PowerShellスクリプトを生成
+    const psScript = buildExcelComScript(ki, entries, KOUJI_TEMPLATE, outputPath);
+    const psPath = resolve(TMP_DIR, `kouji-${Date.now()}.ps1`);
+    writeFileSync(psPath, "\ufeff" + psScript, "utf-8"); // BOM付きUTF-8
+
+    // PowerShell実行
+    await new Promise((resolve, reject) => {
+      execFile("powershell", [
+        "-ExecutionPolicy", "Bypass",
+        "-File", psPath,
+      ], { timeout: 30_000 }, (err, stdout, stderr) => {
+        try { unlinkSync(psPath); } catch {}
+        if (err) {
+          console.error("PowerShell error:", stderr || err.message);
+          reject(new Error("Excel転記エラー: " + (stderr || err.message)));
+          return;
+        }
+        console.log("Excel COM:", stdout.trim());
+        resolve();
+      });
+    });
+
+    // 保存パスをJSON で返す
+    res.json({ success: true, path: outputPath, filename: baseName + ".xlsx" });
+  } catch (err) {
+    console.error("Excel転記エラー:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 協議内容テキスト → Excel転記用データ配列
+// ルール:
+//   「受注者、了承。」→ 受注者了承（I列）
+//   「受注者、〜」→ 受注者発言（J列）
+//   「了承。」（単独）→ 発注者了承（G列）
+//   空行 → 行スキップ（元の書式を再現）
+//   それ以外 → 発注者側（B列、インデント付きはC列）
+function parseKoujiForExcel(text) {
+  const entries = [];
+  const lines = text.split("\n");
+  let row = 14; // Row 14から開始（仮番号、後でページ分割時に再計算）
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // 空行 → 行を進める（元のExcelの空行を再現）
+    if (!trimmed) {
+      row++;
+      continue;
+    }
+
+    // Markdown見出し（AI生成の場合）
+    if (trimmed.startsWith("## ") || trimmed.startsWith("# ")) {
+      entries.push({ row, col: "B", value: trimmed.replace(/^#+\s*/, "") });
+      row++;
+      continue;
+    }
+
+    // 「受注者、了承。〜」パターン（了承＋追加コメント）
+    const ryoshoWithComment = trimmed.match(/^受注者[、,]\s*了承[。.]?\s*(.+)$/);
+    if (ryoshoWithComment) {
+      entries.push({ row, col: "I", value: "了承。" });
+      entries.push({ row, col: "J", value: ryoshoWithComment[1].trim() });
+      row++;
+      continue;
+    }
+
+    // 「受注者、了承。」パターン
+    if (/^受注者[、,]\s*了承[。.]?\s*$/.test(trimmed)) {
+      entries.push({ row, col: "I", value: "了承。" });
+      row++;
+      continue;
+    }
+
+    // 「受注者、〜」パターン → 受注者発言（J列）
+    const juchuMatch = trimmed.match(/^受注者[、,]\s*(.+)$/);
+    if (juchuMatch) {
+      entries.push({ row, col: "J", value: juchuMatch[1].trim() });
+      row++;
+      continue;
+    }
+
+    // Markdown受注者マーカー（AI生成の場合）
+    if (trimmed.startsWith("→") || trimmed.startsWith("->")) {
+      const t = trimmed.replace(/^→\s*|^->\s*/, "").trim();
+      if (/^了承[。.]?\s*$/.test(t)) {
+        entries.push({ row, col: "I", value: "了承。" });
+      } else {
+        entries.push({ row, col: "J", value: t });
+      }
+      row++;
+      continue;
+    }
+
+    // 「了承。」単独（受注者マーカーなし）→ 発注者側の了承（G列）
+    if (/^了承[。.]?\s*$/.test(trimmed)) {
+      entries.push({ row, col: "G", value: "了承。" });
+      row++;
+      continue;
+    }
+
+    // インデント付き（タブや複数スペース始まり）→ C列
+    if (line.startsWith("\t\t") || line.startsWith("　　") || /^\s{4,}/.test(line)) {
+      entries.push({ row, col: "C", value: trimmed });
+      row++;
+      continue;
+    }
+
+    // 発注者側（デフォルト）→ B列
+    entries.push({ row, col: "B", value: trimmed });
+    row++;
+  }
+
+  return entries;
+}
+
+// PowerShellスクリプト生成（複数ページ対応）
+function buildExcelComScript(ki, entries, templatePath, outputPath) {
+  const esc = (s) => (s || "").replace(/'/g, "''");
+  const CONTENT_START = 14;
+  const CONTENT_END = 72;
+  const ROWS_PER_PAGE = CONTENT_END - CONTENT_START + 1; // 59行
+
+  // エントリをページごとに分割
+  const pages = [[]];
+  let pageRow = CONTENT_START;
+
+  for (const e of entries) {
+    if (pageRow > CONTENT_END) {
+      pages.push([]);
+      pageRow = CONTENT_START;
+    }
+    // 元のrow番号をページ内rowに変換
+    pages[pages.length - 1].push({ ...e, row: pageRow });
+    pageRow++;
+  }
+
+  const totalPages = pages.length;
+
+  let ps = `
+$excel = New-Object -ComObject Excel.Application
+$excel.Visible = $false
+$excel.DisplayAlerts = $false
+
+try {
+  $wb = $excel.Workbooks.Open('${esc(templatePath)}')
+  $ws1 = $wb.Sheets.Item(1)
+`;
+
+  // 追加シートが必要な場合、先にコピーして作成
+  if (totalPages > 1) {
+    ps += `
+  # ${totalPages - 1}ページ分のシートを追加
+  for ($i = 2; $i -le ${totalPages}; $i++) {
+    $ws1.Copy([System.Reflection.Missing]::Value, $wb.Sheets.Item($wb.Sheets.Count)) | Out-Null
+    $newSheet = $wb.Sheets.Item($wb.Sheets.Count)
+    $newSheet.Name = '${esc(ki.kaisu || "第1回")}(' + $i + ')'
+    # 追加ページのヘッダーは「追番ページ」表記に
+    $newSheet.Range('M2').Value2 = '追番ページ ' + $i
+    # 内容エリアクリア
+    $newSheet.Range('A14:O72').ClearContents | Out-Null
+  }
+`;
+  }
+
+  // 各ページにデータ転記
+  for (let p = 0; p < totalPages; p++) {
+    const sheetIdx = p + 1;
+    ps += `
+  # --- ページ ${sheetIdx} ---
+  $ws = $wb.Sheets.Item(${sheetIdx})
+`;
+
+    // 1ページ目はヘッダー転記 + 内容クリア
+    if (p === 0) {
+      ps += `
+  # ヘッダー転記
+  $ws.Range('A2').Value2 = '${esc(ki.kaisu || "第　　回")}'
+  $ws.Range('D7').Value2 = '${esc(ki.date || "")}'
+  $ws.Range('L7').Value2 = '${esc(ki.place || "")}'
+  $ws.Range('D8').Value2 = '${esc(ki.koujiName || "")}'
+  $ws.Range('L8').Value2 = '${esc(ki.method || "会議")}'
+  $ws.Range('D9').Value2 = '${esc(ki.hatchuName || "")}'
+  $ws.Range('L9').Value2 = '${esc(ki.juchuName || "")}'
+  $ws.Range('F11').Value2 = '${esc(ki.hatchuMembers || "")}'
+  $ws.Range('L11').Value2 = '${esc(ki.juchuMembers || "")}'
+  $ws.Range('A14:O72').ClearContents | Out-Null
+`;
+    } else {
+      // 追加ページもヘッダー情報を同じに
+      ps += `
+  $ws.Range('D7').Value2 = '${esc(ki.date || "")}'
+  $ws.Range('D8').Value2 = '${esc(ki.koujiName || "")}'
+`;
+    }
+
+    // 内容転記
+    for (const e of pages[p]) {
+      ps += `  $ws.Range('${e.col}${e.row}').Value2 = '${esc(e.value)}'\n`;
+    }
+  }
+
+  ps += `
+  # 別名保存（xlsx形式: FileFormat=51）
+  $wb.SaveAs('${esc(outputPath)}', 51) | Out-Null
+  $wb.Close()
+  Write-Host 'OK: ${totalPages} pages'
+} catch {
+  Write-Host ('ERROR: ' + $_.Exception.Message)
+} finally {
+  $excel.Quit()
+  [System.Runtime.Interopservices.Marshal]::ReleaseComObject($excel) | Out-Null
+}
+`;
+
+  return ps;
+}
+
+// 公共工事用: Markdownを発注者/受注者のペアにパース
+function parseKoujiContent(md) {
+  const rows = [];
+  let currentHatchu = [];
+  let currentJuchu = [];
+  const lines = md.split("\n");
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed === "---") {
+      // セクション区切り: 蓄積があればpush
+      if (currentHatchu.length || currentJuchu.length) {
+        rows.push({ hatchu: currentHatchu.length ? currentHatchu : [""], juchu: currentJuchu.length ? currentJuchu : [""] });
+        currentHatchu = [];
+        currentJuchu = [];
+      }
+      // 見出し行は発注者側に追加
+      if (trimmed.startsWith("#")) {
+        const heading = trimmed.replace(/^#+\s*/, "");
+        currentHatchu.push(heading);
+      }
+      continue;
+    }
+
+    // 【受注者】マーカーで分離
+    if (trimmed.startsWith("【受注者】") || trimmed.startsWith("[受注者]")) {
+      currentJuchu.push(trimmed.replace(/^【受注者】|^\[受注者\]/, "").trim());
+    } else if (trimmed.startsWith("【発注者】") || trimmed.startsWith("[発注者]")) {
+      currentHatchu.push(trimmed.replace(/^【発注者】|^\[発注者\]/, "").trim());
+    } else if (trimmed.startsWith("→")) {
+      // 受注者の応答
+      currentJuchu.push(trimmed.slice(1).trim());
+    } else {
+      // デフォルトは発注者側
+      currentHatchu.push(trimmed.replace(/^[-*]\s*/, ""));
+    }
+  }
+
+  // 残りをpush
+  if (currentHatchu.length || currentJuchu.length) {
+    rows.push({ hatchu: currentHatchu.length ? currentHatchu : [""], juchu: currentJuchu.length ? currentJuchu : [""] });
+  }
+
+  return rows.length ? rows : [{ hatchu: ["（内容なし）"], juchu: [""] }];
+}
 
 // Markdown → docx Paragraphs 変換（議事録フォーマット）
 function markdownToDocxParagraphs(md) {
@@ -570,6 +1052,81 @@ ${memo || "（なし）"}
 - 議論の流れ（賛成・反対・質問・回答）を時系列で記録してください
 - ビジネス文書として適切なトーンで記述してください
 - **「承知いたしました」「以下に〜」などの前置き・挨拶文は一切不要です。いきなり「# 議事録:」から始めてください**`;
+}
+
+function buildKoujiPrompt({ transcript, memo, koujiInfo = {} }) {
+  const ki = koujiInfo;
+  return `あなたは公共工事の打合記録簿を作成するアシスタントです。以下の打合せ内容から、発注者側と受注者側の発言を分離した打合記録を作成してください。
+
+## 打合せ情報
+- 業務名称: ${ki.koujiName || "（未設定）"}
+- 日時: ${ki.date || "（未設定）"}
+- 場所: ${ki.place || "（未設定）"}
+- 発注機関: ${ki.hatchuName || "（未設定）"}
+- 受注者: ${ki.juchuName || "（未設定）"}
+- 出席者（発注者側）: ${ki.hatchuMembers || "（未設定）"}
+- 出席者（受注者側）: ${ki.juchuMembers || "（未設定）"}
+- 回数: ${ki.kaisu || "（未設定）"}
+
+## 文字起こしテキスト
+${transcript || "（なし）"}
+
+## 手書きメモ・補足
+${memo || "（なし）"}
+
+## 出力フォーマット（重要）
+
+以下のルールに厳密に従ってください：
+
+### 構成ルール
+1. **発注者側の発言**はそのまま記述する（行頭にマーカーなし）
+2. **受注者側の発言・回答**は行頭に「受注者、」を付ける
+3. **受注者が了承する場合**は「受注者、了承。」と書く。追加コメントがあれば「受注者、了承。追加コメント」と同じ行に書く
+4. **発注者が了承する場合**は「了承。」とだけ書く（「受注者、」は付けない）
+5. 発注者の指示・質問に対して受注者が回答している場合は、対応がわかるように近い位置に配置する
+6. 空行でセクションを区切る（見出し行の前には空行を入れる）
+7. インデント（継続行）は元のテキストの構造を維持する
+
+### 話者の判別方法
+- メモに「話者Aは受注者」「話者Bは発注者」等の指定があれば、それに従って振り分ける
+- 指定がない場合は文脈から判断する：指示・依頼・要望 → 発注者、回答・検討・了承 → 受注者
+- 出席者情報も参考にする（発注者側出席者の名前が話者名に含まれていれば発注者）
+
+### 出力例
+
+${ki.hatchuName || "発注者"}にて打ち合わせを行う。
+
+
+以下、協議事項
+	造成図面案の説明がある。
+	・先日の現地立会で決めた起点より30度ラインの内側で
+		設計を進めていただきたい。
+	・初回の資料では9m×17mでしたが、8m×15mに変更してください。
+	・床面積120㎡は確保してほしい。
+受注者、了承。
+
+
+	建物位置の変更に伴い変更点の説明がある。
+	・南面は片引きまたは両引き戸とし、シャッターは手動のシャッターに変更。
+受注者、・シャッターは3m×3m＝9㎡までなら制作可能です。
+	・内部に3箇所、電光掲示板用の充電用コンセントを設置していただきたい。
+受注者、・差込み形状を後日教えてください。
+
+受注者、・造成図面ができ敷地が決まりましたので、
+受注者、近日中にスウェーデンサウンディング試験を行います。
+	了承。
+受注者、・特記仕様書の配布をお願いします。
+
+---
+
+### 注意事項
+- 文字起こしの誤認識は文脈から適切に補正してください
+- 手書きメモがある場合は照合して正確性を高めてください
+- 建築・土木の専門用語は正確に使用してください
+- 不明な点は「※要確認」と注記してください
+- 省略せず、協議内容を漏らさず記録してください
+- 空行の位置も元のテキストの構造を尊重してください
+- **「承知いたしました」「以下に〜」などの前置き・挨拶文は一切不要です。いきなり最初の内容から始めてください**`;
 }
 
 // ─── サーバー起動 ───

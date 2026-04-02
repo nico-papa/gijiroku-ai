@@ -214,6 +214,55 @@ header {
   text-decoration: underline;
 }
 
+/* Format selector */
+.format-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.format-option {
+  cursor: pointer;
+}
+
+.format-option input[type="radio"] {
+  display: none;
+}
+
+.format-card {
+  text-align: center;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.format-option:hover .format-card {
+  border-color: var(--primary);
+  background: rgba(59, 130, 246, 0.02);
+}
+
+.format-option.selected .format-card {
+  border-color: var(--primary);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.format-icon {
+  font-size: 1.2rem;
+  margin-bottom: 0.15rem;
+}
+
+.format-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.format-desc {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-top: 0.1rem;
+}
+
 /* Form */
 .form-grid {
   display: grid;
@@ -426,6 +475,16 @@ textarea {
 
 .btn-docx:hover {
   background: #1d4ed8;
+}
+
+.btn-xlsx {
+  background: #16a34a;
+  color: white;
+  border-color: #16a34a;
+}
+
+.btn-xlsx:hover {
+  background: #15803d;
 }
 
 .action-bar-left {
